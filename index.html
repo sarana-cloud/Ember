@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Ember — files that vanish</title>
 <link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -34,7 +34,8 @@
     display:flex;
     align-items:center;
     justify-content:center;
-    padding: 24px;
+    padding: max(20px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+    -webkit-text-size-adjust: 100%;
   }
   .wrap{ width:100%; max-width: 460px; }
   .brand{
@@ -78,7 +79,9 @@
     transition: border-color .15s ease, background .15s ease;
   }
   .drop:hover, .drop.drag{ border-color: var(--ember-dim); background: rgba(255,90,31,0.05); }
-  .drop input{ display:none; }
+  .drop{ touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  .drop:active{ border-color: var(--ember-dim); background: rgba(255,90,31,0.08); }
+  #fileInput{ display:none; }
   .drop .icon{ font-size:26px; margin-bottom:8px; opacity:.8; }
   .drop .label{ font-size:14px; color:var(--text); }
   .drop .sub{ font-size:12px; color:var(--text-dim); margin-top:4px; }
@@ -97,12 +100,13 @@
   .err{ color:var(--danger); font-size:12.5px; margin-top:10px; display:none; }
 
   button.primary{
-    width:100%; margin-top:20px;
+    width:100%; margin-top:20px; min-height:48px;
     background: var(--ember); color:#1a0d05;
     border:none; border-radius:8px;
-    padding:13px; font-weight:600; font-size:14.5px;
+    padding:13px; font-weight:600; font-size:15px;
     cursor:pointer; font-family:'Inter', sans-serif;
     transition: filter .15s ease, transform .05s ease;
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
   }
   button.primary:hover{ filter:brightness(1.08); }
   button.primary:active{ transform: scale(0.99); }
@@ -133,16 +137,22 @@
   .share-sub{ text-align:center; color:var(--text-dim); font-size:12.5px; margin-bottom:22px; }
 
   .link-row{
-    display:flex; gap:8px; margin-top:16px;
+    display:flex; gap:8px; margin-top:16px; flex-wrap:wrap;
   }
   .link-row input{
-    flex:1; background:var(--panel-2); border:1px solid var(--line); border-radius:8px;
-    color:var(--text); font-family:'JetBrains Mono', monospace; font-size:12px;
-    padding:10px 12px; min-width:0;
+    flex:1 1 180px; background:var(--panel-2); border:1px solid var(--line); border-radius:8px;
+    color:var(--text); font-family:'JetBrains Mono', monospace; font-size:16px;
+    padding:10px 12px; min-width:0; min-height:44px;
   }
   .link-row button{
     background:var(--panel-2); border:1px solid var(--line); color:var(--text);
-    border-radius:8px; padding:0 14px; font-size:12.5px; cursor:pointer; font-family:'Inter', sans-serif;
+    border-radius:8px; padding:0 16px; font-size:13px; cursor:pointer; font-family:'Inter', sans-serif;
+    min-height:44px; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    flex:0 0 auto;
+  }
+  @media (max-width: 380px){
+    .link-row input{ flex-basis:100%; }
+    .link-row button{ flex:1 1 auto; }
   }
   .link-row button:hover{ border-color:var(--phosphor); color:var(--phosphor); }
 
@@ -159,6 +169,16 @@
   @media (prefers-reduced-motion: reduce){
     .ring .fill{ transition:none; }
   }
+
+  @media (max-width: 400px){
+    .card{ padding:24px 18px; }
+    .brand{ gap:8px; }
+    .brand h1{ font-size:19px; }
+    .brand span{ font-size:11.5px; }
+    .ring{ width:112px; height:112px; }
+    .ring .time{ font-size:19px; }
+    .drop{ padding:22px 12px; }
+  }
 </style>
 </head>
 <body>
@@ -170,12 +190,12 @@
   <div class="card" id="uploadView">
     <p class="tagline">Drop a file. Anyone with the link can grab it —<br>then it's gone in 10 minutes.</p>
 
-    <label class="drop" id="dropZone" tabindex="0">
-      <input type="file" id="fileInput">
+    <input type="file" id="fileInput" aria-hidden="true">
+    <div class="drop" id="dropZone" tabindex="0" role="button" aria-label="Choose a file to send">
       <div class="icon">◎</div>
-      <div class="label">Click or drag a file here</div>
+      <div class="label">Tap to choose a file</div>
       <div class="sub">Up to 10 MB</div>
-    </label>
+    </div>
 
     <div class="file-row hidden" id="fileRow">
       <span class="name" id="fileName"></span>
@@ -270,7 +290,9 @@
     }
 
     dropZone.addEventListener('click', () => fileInput.click());
-    dropZone.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' ') fileInput.click(); });
+    dropZone.addEventListener('keydown', e => {
+      if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); fileInput.click(); }
+    });
     fileInput.addEventListener('change', e => setFile(e.target.files[0]));
 
     ['dragover','dragenter'].forEach(ev => dropZone.addEventListener(ev, e => {
@@ -311,7 +333,11 @@
         const shareUrl = location.origin + location.pathname + '#' + hash;
         showShareCreated(selected.name, shareUrl, expiry);
       }catch(err){
-        errMsg.textContent = "Couldn't send that file — " + err.message + '. Try again?';
+        if(err instanceof TypeError){
+          errMsg.textContent = 'Upload failed to reach file.io — check your connection, or the browser console for a blocked-request error.';
+        } else {
+          errMsg.textContent = "Couldn't send that file — " + err.message + '. Try again?';
+        }
         errMsg.style.display = 'block';
         uploadBtn.disabled = false;
         uploadBtn.textContent = 'Send it';
